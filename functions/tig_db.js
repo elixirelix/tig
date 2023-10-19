@@ -103,4 +103,16 @@ async function DBChangeAmmoutMember(db, id, newAmmout) {
     })
 }
 
-module.exports = { DBAddTIG, DBGetAllTIG, DBChangeTIGName, DBChangeTIGStatus, DBChangeAmmoutMember };
+async function DBGetNameOfTIG(db, id) {
+    return new Promise((resolve, reject) => {
+        db.query(`SELECT name FROM ${process.env.DB_TIG_NAME} WHERE id = ?`, [id], function(err, rows) {
+            if (err) {
+                reject(err);
+            };
+
+            resolve(rows)
+        })
+    })
+}
+
+module.exports = { DBAddTIG, DBGetAllTIG, DBChangeTIGName, DBChangeTIGStatus, DBChangeAmmoutMember, DBGetNameOfTIG };

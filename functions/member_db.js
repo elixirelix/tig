@@ -94,7 +94,7 @@ async function DBAddMemberChangeSection(db, id, newSection) {
 
 async function DBAddMemberGetAllHistory(db, id) {
     return new Promise((resolve, reject) => {
-        db.query(`SELECT * FROM ${process.env.DB_MEMBER_NAME} (history) WHERE id = ?`, [id], function(err, rows) {
+        db.query(`SELECT * FROM ${process.env.DB_MEMBER_NAME} WHERE id = ?`, [id], function(err, rows) {
             if (err) {
                 reject(err);
             };
