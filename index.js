@@ -1,8 +1,7 @@
 const mysql = require('mysql');
-const moment = require('momen');
 require('dotenv').config();
 const readline = require('readline');
-const { unix } = require('moment');
+const moment = require('moment');
 var rl = readline.createInterface(process.stdin, process.stdout);
 const { Sleep } = require(`${process.cwd()}/functions/sleep.js`);
 const {
@@ -10,7 +9,8 @@ const {
     DBGetAllTIG,
     DBChangeTIGName,
     DBChangeTIGStatus,
-    DBChangeAmmoutMember
+    DBChangeAmmoutMember,
+    DBGetNameOfTIG
 } = require(`${process.cwd()}/functions/tig_db.js`);
 
 const {
@@ -26,6 +26,7 @@ const {
     DBAddMemberChangeHistory,
     DBAddMemberGetAllHistory 
 } = require(`${process.cwd()}/functions/member_db.js`);
+moment.locale('fr');
 
 let db;
 db = mysql.createConnection({
@@ -77,6 +78,7 @@ async function MainMenu() {
             case "3":
                 break;
             case "4":
+                SeeWeekHistory()
                 break;
             case "5":
                 PurgeTable();
@@ -196,6 +198,10 @@ async function AddTIG() {
                     };
                 });
 
+                /**
+                 * Dans le cas ou l'ID ne correspond a aucune TIG
+                 */
+
                 if (!tig) {
                     console.log("[°] No TIG Found, return to Adding Menu");
                     Sleep(1000, AddTIG)
@@ -210,6 +216,9 @@ async function AddTIG() {
 async function AddMember() {
     console.clear();
     var data = await DBGetAllMember(db);
+    /**
+     * Dans le cas ou aucune TIG n'est trouver dans la DB
+     */
     if (data.length == 0) {
         console.log("[°] No member found");
         rl.question(`You wan't to add one ? (Y/n) `, async (ans) => {
@@ -229,6 +238,9 @@ async function AddMember() {
             };
         });
     } else {
+        /**
+         * Des TIG dans la DB
+         */
         for (i = 0; i < data.length; i++) {
             console.log(`ID: ${data[i].id} | Member Name: ${data[i].name} | Section Member: ${data[i].section} | Phone Member: ${data[i].phone}`);
         };
@@ -262,6 +274,7 @@ async function AddMember() {
                                     });
                                     break;
                                 case "history":
+                                    const AllTIG = await DBGetAllTIG(db);
                                     let MemberData = await DBAddMemberGetAllHistory(db, element.id);
                                     let RealData = MemberData[0];
                                     let hist = JSON.parse(RealData.history);
@@ -272,9 +285,23 @@ async function AddMember() {
                                             case "deleteall":
                                                 break;
                                             case "deletevalue":
+                                                if (AllTIG.length < 1) {
+                                                    console.log("[°] No TIG Config. Return to Main Menu");
+                                                    Sleep(1000, MainMenu);
+                                                } else {
+                                                    let HistoryData = JSON.parse(RealData.history);
+                                                    console.log("[°] Select a TIG ID");
+                                                    for (i = 0; i < HistoryData; i++) {
+                                                        console.log(`ID : ${i} | ${HistoryData[i].name} | ${moment.unix(HistoryData[i].date).format("DD/MM/YYYY").toString()}`);
+                                                    }
+
+                                                    rl.question('> ', async function(chosse) {
+                                                        HistoryData[i] = null;
+                                                        await AddEntryHistoryMember(element.id, HistoryData);
+                                                    });
+                                                };
                                                 break;
                                             case "addvalue":
-                                                const AllTIG = await DBGetAllTIG(db);
                                                 if (AllTIG.length < 1) {
                                                     console.log("[°] No TIG Config. Return to Main Menu");
                                                     Sleep(1000, MainMenu);
@@ -286,10 +313,8 @@ async function AddMember() {
                                                     rl.question('> ', async (tig_id) => {
                                                         console.log("[°] Enter Date");
                                                         rl.question('> ', async (date) => {
-                                                            let unix_date = moment(date).unix();
-                                                            print(unix_date)
-                                                            await AddEntryHistoryMember(element.id, hist, true, unix_date, tig_id);
-                                                            Sleep()
+                                                            let unix_date = moment(date, "DD/MM/YYYY").valueOf();
+                                                            await AddEntryHistoryMember(element.id, hist, unix_date, tig_id);
                                                         });
                                                     });
                                                 };
@@ -308,17 +333,63 @@ async function AddMember() {
                         })
                     }
                 });
+
+                if (!member) {
+                    console.log("[°] No Member was found, return to AddMember menu");
+                    Sleep(1000, AddMember);
+                }
             }
         });
     };
 }
 
-async function AddEntryHistoryMember(id, hist, type, date, tig_id) {
-    if (type) {
-        hist.push({tig: tig_id, date: date});
-        await DBAddMemberChangeHistory(db, id, JSON.stringify(hist));
-    };
+async function AddEntryHistoryMember(id, hist, date, tig_id) {
+    hist.push({tig: tig_id, date: date});
+    await DBAddMemberChangeHistory(db, id, JSON.stringify(hist));
+    console.log("[°] Data added to the history")
     await Sleep(5000, MainMenu);
+};
+
+async function RemoveEntryHistoryMember() {
+}
+
+async function SeeWeekHistory() {
+    console.clear();
+    let users = await DBGetAllMember(db);
+    if (users.length == 0) {
+        console.log("[°] No Users found, return to MainMenu");
+        Sleep(1000, MainMenu);
+    } else {
+        for (i = 0; i < users.length; i++) {
+            console.log(`ID: ${users[i].id} | Member Name: ${users[i].name} | Section Member: ${users[i].section} | Phone Member: ${users[i].phone}`);
+        };
+
+        console.log("Enter a user ID");
+        rl.question('> ', async (id) => {
+            const member = users.some(async (element) => {
+                if (element.id == id) {
+                    console.log(`Member found ! ${element.name} (${element.phone})`);
+                    console.log("History :");
+                    console.log("");
+                    var datahistory = JSON.parse(element.history);
+                    for (i = 0; i < datahistory.length; i++) {
+                        var name = await DBGetNameOfTIG(db, datahistory[i].tig);
+                        var date = moment.unix(Math.round(datahistory[i].date / 1000)).format("DD/MM/YYYY").toString();
+                        console.log(`${name[0].name} | ${date}`);
+                    };
+
+                    rl.question('Press enter to return to the MainMenu ', async (input) => {
+                        MainMenu();
+                    });
+                };
+            });
+            
+            if (!member) {
+                console.log("[°] No member with this ID. Return to MainMenu");
+                Sleep(1000, MainMenu);
+            }
+        });
+    }
 }
 
 async function PurgeTable() {
